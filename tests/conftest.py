@@ -305,16 +305,12 @@ def pytest_runtest_makereport(item, call):
                     """
                 )
 
-            extra.append(
-                {
-                    "type": "html",
-                    "value": (
-                        f'<div style="margin-top:8px;">'
-                        f'<h4 style="margin:4px 0;color:#333;">Transações HTTP executadas ({len(txs)})</h4>'
-                        + "".join(blocks)
-                        + "</div>"
-                    ),
-                }
+            html_body = (
+                f'<div style="margin-top:8px;">'
+                f'<h4 style="margin:4px 0;color:#333;">Transações HTTP executadas ({len(txs)})</h4>'
+                + "".join(blocks)
+                + "</div>"
             )
+            extra.append({"type": "html", "content": html_body, "value": html_body})
 
     report.extra = extra
