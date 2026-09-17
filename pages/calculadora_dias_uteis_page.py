@@ -1,3 +1,5 @@
+import re
+
 from playwright.sync_api import Page
 from pages.base_page import BasePage
 
@@ -14,7 +16,7 @@ class CalculadoraDiasUteisPage(BasePage):
             "input[id*='dataFinal'], input[name*='dataFinal'], [placeholder*='final']"
         )
         self._btn_calc = page.get_by_role(
-            "button", name=lambda t: "calcular" in t.lower()
+            "button", name=re.compile(r"calcular", re.IGNORECASE)
         )
         self._out = page.locator(
             "div[class*='resultado'], span[class*='resultado'], section[class*='result']"

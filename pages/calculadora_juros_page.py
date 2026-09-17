@@ -1,3 +1,5 @@
+import re
+
 from playwright.sync_api import Page
 from pages.base_page import BasePage
 
@@ -11,10 +13,10 @@ class CalculadoraJurosPage(BasePage):
     def __init__(self, page: Page) -> None:
         super().__init__(page)
         self._btn_divida = page.get_by_role(
-            "button", name=lambda t: self.MODO_DIVIDA.lower() in t.lower()
+            "button", name=re.compile(r"d[íi]vida", re.IGNORECASE)
         )
         self._btn_invest = page.get_by_role(
-            "button", name=lambda t: self.MODO_INVEST.lower() in t.lower()
+            "button", name=re.compile(r"investimento", re.IGNORECASE)
         )
 
         self._v_ini = page.locator(
@@ -33,7 +35,7 @@ class CalculadoraJurosPage(BasePage):
         )
 
         self._btn_calc = page.get_by_role(
-            "button", name=lambda t: "calcular" in t.lower()
+            "button", name=re.compile(r"calcular", re.IGNORECASE)
         )
         self._out = page.locator(
             "div[class*='resultado'], section[class*='result'], div[class*='result']"

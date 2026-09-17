@@ -1,3 +1,5 @@
+import re
+
 from playwright.sync_api import Page
 from pages.base_page import BasePage
 
@@ -15,8 +17,7 @@ class BlogAgiSearchPage(BasePage):
             "input[id*='search'], [placeholder*='pesquisar'], [placeholder*='buscar']"
         )
         self._submit = page.get_by_role(
-            "button",
-            name=lambda t: any(p in t.lower() for p in ["pesquisar", "buscar", "search"]),
+            "button", name=re.compile(r"pesquisar|buscar|search", re.IGNORECASE)
         )
         self._posts = page.locator(
             "article[class*='post'], div[class*='post'], li[class*='search-result'], "
