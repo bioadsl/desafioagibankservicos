@@ -13,153 +13,191 @@ class CalculadoraJurosPage(BasePage):
 
     def __init__(self, page: Page) -> None:
         super().__init__(page)
-        self.page_title = page.get_by_role(
-            "heading", level=2, name=re.compile(r"juros|calculadora", re.IGNORECASE)
-        )
-        self._btn_divida = (
-            page.get_by_role(
-                "tab", name=re.compile(r"d[íi]vida|devedor", re.IGNORECASE)
-            ).or_(page.get_by_role("button")
-            .filter(has_text=re.compile(r"d[íi]vida|devedor", re.I)))
-        )
-        self._btn_invest = (
-            page.get_by_role(
-                "tab", name=re.compile(r"investimento|aplicação|aplicacao", re.IGNORECASE)
-            ).or_(page.get_by_role("button")
-            .filter(has_text=re.compile(r"investimento|aplicação", re.I)))
-        )
-        self._tabs = page.locator(
-            "button[class*='tab']:visible, [role=tab]:visible, "
-            "label[for*='divida']:visible, label[for*='invest']:visible, "
-            "button[class*='tab'], [role=tab], label[for*='divida'], label[for*='invest']"
-        )
-        self._v_ini_label = page.get_by_label(
-            re.compile(r"valor\s*inicial|montante|capital|valor\s*presente|valor\s*do\s*empr[eé]stimo", re.I)
-        )
-        self._taxa_label = page.get_by_label(
-            re.compile(r"taxa\s*de\s*juros|taxa\s*ao|juros\s*ao", re.IGNORECASE)
-        )
-        self._periodo_label = page.get_by_label(
-            re.compile(r"per[ií]odo|prazo|tempo|meses|anos", re.IGNORECASE)
-        )
-        self._mensal_label = page.get_by_label(
-            re.compile(r"valor\s*mensal|aporte\s*mensal|parcela|mensal", re.IGNORECASE)
-        )
-        self._txt_inputs = page.locator(
-            "input[type='text']:visible, input[type='number']:visible, "
-            "input:not([type]):visible, "
-            "input[type='text'], input[type='number'], input:not([type])"
-        )
-        self._btn_calc = page.get_by_role(
-            "button", name=re.compile(r"calcular|simular|enviar", re.IGNORECASE)
-        ).or_(page.locator(
-            "input[type=submit]:visible,button[type=submit]:visible,"
-            "[role=button]:visible,a[role=button]:visible,"
-            "input[type=submit],button[type=submit],[role=button],a[role=button]"
-        ))
-        self._out = page.locator(
-            "div[class*='resultado']:visible, section[class*='result']:visible, "
-            "div[class*='result']:visible, [data-testid*='result']:visible, "
-            "[class*='montante']:visible, [class*='total']:visible, "
-            "div[class*='resultado'], section[class*='result'], div[class*='result'], "
-            "[data-testid*='result'], [class*='montante'], [class*='total']"
-        )
+        self.page = page
+
+    def _aceitar_cookies(self) -> None:
+        for sel in [
+            self.page.get_by_role("button", name=re.compile(r"aceitar|concordo|accept|consent", re.I)),
+            self.page.locator("button:has-text('Aceitar'):visible, button:has-text('Concordo'):visible, button#accept-cookies:visible, [id*='cookie'] button:has-text('Aceitar'):visible"),
+        ]:
+            try:
+                if sel.count() > 0 and sel.first.is_visible():
+                    sel.first.click(timeout=3000)
+                    self.page.wait_for_timeout(300)
+                    return
+            except Exception:
+                continue
 
     def open(self) -> None:
         self.go(f"{self.URL_AGI}{self.PATH}")
         self.page.wait_for_load_state("networkidle")
+        self._aceitar_cookies()
         expect(self.page).to_have_url(
             re.compile(r"juros|agibank", re.IGNORECASE), timeout=20000
         )
+        form = self.page.locator(
+            "form:has(input):visible, [data-testid*='calculadora']:visible, "
+            "[class*='calculadora']:visible, [id*='calculadora']:visible, "
+            "section:has(input[placeholder]):visible, article:has(input):visible, "
+            "section:has(input[type='number']):visible"
+        ).first
+        expect(form).to_be_visible(timeout=30000)
+
+    def _smart_fill(self, label_re: re.Pattern, extra_sel: str, nth_fallback: int, value: str) -> None:
+        loc = self.page.get_by_label(label_re).or_(self.page.locator(extra_sel))
+        if loc.count() == 0 or not loc.first.is_visible():
+            alt = self.page.locator(
+                "input[type='text']:visible,input[type='number']:visible,input:not([type]):visible"
+            )
+            if alt.count() > nth_fallback:
+                loc = alt.nth(nth_fallback)
         try:
-            expect(self.page_title).to_be_visible(timeout=10000)
+            expect(loc.first).to_be_visible(timeout=12000)
+            loc.first.fill(value)
         except Exception:
-            pass
+            try:
+                loc.first.click()
+                loc.first.fill(value)
+            except Exception:
+                try:
+                    loc.first.focus()
+                    self.page.keyboard.type(value)
+                except Exception:
+                    loc.first.evaluate(
+                        "(e, v) => { e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); e.dispatchEvent(new Event('change', {bubbles:true})); }",
+                        value,
+                    )
+
+    def _toggle_modo(self, is_divida: bool) -> None:
+        key_txt = re.compile(r"d[íi]vida|devedor", re.I) if is_divida else re.compile(r"investimento|invest|aplica[cç][aã]o", re.I)
+        for _ in range(2):
+            try:
+                r = self.page.get_by_role("radio", name=key_txt)
+                if r.count() > 0 and r.first.is_visible():
+                    try:
+                        r.first.check(timeout=3000)
+                    except Exception:
+                        r.first.click(timeout=3000)
+                    self.page.wait_for_timeout(300)
+                    return
+            except Exception:
+                pass
+            try:
+                t = (
+                    self.page.get_by_role("tab", name=key_txt)
+                    .or_(self.page.get_by_role("button", name=key_txt))
+                    .or_(
+                        self.page.locator(
+                            "button[class*='tab']:visible,[role=tab]:visible,label[for*='divida']:visible,label[for*='invest']:visible"
+                        )
+                    )
+                )
+                if t.count() > 0:
+                    for cand in t.all():
+                        try:
+                            if not cand.is_visible():
+                                continue
+                            txt = cand.inner_text().lower()
+                            if re.search(r"d[íi]vida|devedor" if is_divida else r"invest|aplica", txt):
+                                cand.click(timeout=3000)
+                                self.page.wait_for_timeout(400)
+                                return
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+            self.page.wait_for_timeout(300)
 
     def modo_divida(self) -> None:
-        if self._btn_divida.count() > 0:
-            try:
-                self._btn_divida.first.click(timeout=5000)
-            except Exception:
-                if self._tabs.count() > 0:
-                    for t in self._tabs.all():
-                        try:
-                            if re.search(r"d[íi]vida|devedor", t.inner_text(), re.I):
-                                t.click(timeout=3000)
-                                break
-                        except Exception:
-                            continue
-        self.page.wait_for_timeout(400)
+        self._toggle_modo(True)
 
     def modo_investimento(self) -> None:
-        if self._btn_invest.count() > 0:
-            try:
-                self._btn_invest.first.click(timeout=5000)
-            except Exception:
-                if self._tabs.count() > 0:
-                    for t in self._tabs.all():
-                        try:
-                            if re.search(r"invest|aplica", t.inner_text(), re.I):
-                                t.click(timeout=3000)
-                                break
-                        except Exception:
-                            continue
-        self.page.wait_for_timeout(400)
+        self._toggle_modo(False)
 
-    def _nth_text(self, n: int):
-        if self._txt_inputs.count() > n:
-            return self._txt_inputs.nth(n)
-        return self._txt_inputs.first
+    def set_valor_inicial(self, v: str, nth: int = 0) -> None:
+        self._smart_fill(
+            re.compile(r"valor\s*inicial|montante|capital|valor\s*presente|principal|valor\s*do\s*empr[eé]stimo|valor\s*investido", re.I),
+            "input[name*='valor']:visible,input[name*='montante']:visible,input[name*='principal']:visible,input[id*='valor']:visible,input[id*='montante']:visible,input[placeholder*='valor']:visible,input[placeholder*='montante']:visible",
+            nth,
+            v,
+        )
 
-    def _smart_fill(self, label_loc, n: int, value: str) -> None:
+    def set_taxa(self, v: str, nth: int = 1) -> None:
+        self._smart_fill(
+            re.compile(r"taxa\s*de\s*juros|taxa\s*ao|juros\s*ao|taxa\s*anual|taxa\s*mensal|juros", re.I),
+            "input[name*='taxa']:visible,input[name*='juros']:visible,input[id*='taxa']:visible,input[id*='juros']:visible,input[placeholder*='taxa']:visible,input[placeholder*='juros']:visible",
+            nth,
+            v,
+        )
+
+    def set_periodo(self, v: str, nth: int = 2) -> None:
+        self._smart_fill(
+            re.compile(r"per[ií]odo|prazo|tempo|meses|anos|parcela", re.I),
+            "input[name*='periodo']:visible,input[name*='prazo']:visible,input[name*='tempo']:visible,input[id*='periodo']:visible,input[id*='prazo']:visible,input[placeholder*='período']:visible,input[placeholder*='periodo']:visible,input[placeholder*='prazo']:visible",
+            nth,
+            v,
+        )
+
+    def set_valor_mensal(self, v: str, nth: int = 3) -> None:
+        self._smart_fill(
+            re.compile(r"valor\s*mensal|aporte\s*mensal|parcela\s*mensal|mensal|aporte|dep[oó]sito\s*mensal", re.I),
+            "input[name*='mensal']:visible,input[name*='aporte']:visible,input[id*='mensal']:visible,input[id*='aporte']:visible,input[placeholder*='mensal']:visible,input[placeholder*='aporte']:visible",
+            nth,
+            v,
+        )
+
+    def _clicar_calcular(self) -> None:
+        btn = (
+            self.page.get_by_role("button", name=re.compile(r"calcular|simular|enviar|submit", re.I))
+            .or_(
+                self.page.locator(
+                    "input[type=submit]:visible,button[type=submit]:visible,[role=button]:visible,a[role=button]:visible,button[type=button]:visible"
+                )
+            )
+        )
         try:
-            if label_loc.count() > 0 and label_loc.first.is_visible():
-                self.fill(label_loc.first, value)
-                return
+            if btn.count() > 0:
+                expect(btn.first).to_be_visible(timeout=8000)
+                btn.first.click(timeout=5000)
+            else:
+                self.page.keyboard.press("Enter")
         except Exception:
-            pass
-        self.fill(self._nth_text(n), value)
-
-    def set_valor_inicial(self, v: str) -> None:
-        self._smart_fill(self._v_ini_label, 0, v)
-
-    def set_taxa(self, v: str) -> None:
-        self._smart_fill(self._taxa_label, 1, v)
-
-    def set_periodo(self, v: str) -> None:
-        self._smart_fill(self._periodo_label, 2, v)
-
-    def set_valor_mensal(self, v: str) -> None:
-        self._smart_fill(self._mensal_label, 3, v)
+            try:
+                self.page.locator(
+                    "input[type=submit]:visible,button[type=submit]:visible,button[class*='calc']:visible"
+                ).first.click(timeout=4000)
+            except Exception:
+                self.page.keyboard.press("Enter")
+        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_timeout(1200)
 
     def calcular(self) -> None:
-        try:
-            expect(self._btn_calc.first).to_be_visible(timeout=8000)
-            self.click(self._btn_calc.first)
-        except Exception:
-            self.page.keyboard.press("Enter")
-        self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(1000)
+        self._clicar_calcular()
 
     def calc_divida(self, ini: str, taxa: str, periodo: str) -> None:
         self.modo_divida()
-        self.set_valor_inicial(ini)
-        self.set_taxa(taxa)
-        self.set_periodo(periodo)
-        self.calcular()
+        self.set_valor_inicial(ini, 0)
+        self.set_taxa(taxa, 1)
+        self.set_periodo(periodo, 2)
+        self._clicar_calcular()
 
     def calc_investimento(self, ini: str, mensal: str, taxa: str, periodo: str) -> None:
         self.modo_investimento()
-        self.set_valor_inicial(ini)
-        self.set_valor_mensal(mensal)
-        self.set_taxa(taxa)
-        self.set_periodo(periodo)
-        self.calcular()
+        self.set_valor_inicial(ini, 0)
+        self.set_valor_mensal(mensal, 1)
+        self.set_taxa(taxa, 2)
+        self.set_periodo(periodo, 3)
+        self._clicar_calcular()
 
     def resultado(self) -> str:
-        if self._out.count() == 0:
+        loc = self.page.locator(
+            "div[class*='resultado']:visible, section[class*='result']:visible, "
+            "div[class*='result']:visible, [data-testid*='result']:visible, "
+            "[class*='montante']:visible, [class*='total']:visible, [id*='resultado']:visible"
+        )
+        if loc.count() == 0:
             return ""
-        for e in self._out.all():
+        for e in loc.all():
             try:
                 txt = e.inner_text().strip()
                 if txt:
@@ -169,17 +207,30 @@ class CalculadoraJurosPage(BasePage):
         return ""
 
     def has_resultado(self) -> bool:
-        return self._out.count() > 0 and any(e.is_visible() for e in self._out.all())
+        loc = self.page.locator(
+            "div[class*='resultado']:visible, section[class*='result']:visible, "
+            "div[class*='result']:visible, [id*='resultado']:visible, div[id*='result']:visible"
+        )
+        return loc.count() > 0 and any(e.is_visible() for e in loc.all())
 
     def modo_divida_ativo(self) -> bool:
-        for t in [self._btn_divida.first] + self._tabs.all():
+        sel = (
+            self.page.get_by_role("radio", name=re.compile(r"d[íi]vida|devedor", re.I))
+            .or_(
+                self.page.locator(
+                    "button[class*='tab']:visible,[role=tab]:visible,label[for*='divida']:visible"
+                )
+            )
+        )
+        for t in sel.all():
             try:
-                if t.count() == 0:
+                if t.count() == 0 or not t.is_visible():
                     continue
                 cls = t.get_attribute("class") or ""
                 pressed = t.get_attribute("aria-pressed")
-                if pressed == "true" or "active" in cls:
-                    txt = t.inner_text().lower()
+                checked = t.get_attribute("checked")
+                if pressed == "true" or checked in ("", "checked", "true") or "active" in cls:
+                    txt = (t.inner_text() or t.get_attribute("value") or "").lower()
                     if re.search(r"d[íi]vida|devedor", txt):
                         return True
             except Exception:
@@ -187,14 +238,23 @@ class CalculadoraJurosPage(BasePage):
         return False
 
     def modo_invest_ativo(self) -> bool:
-        for t in [self._btn_invest.first] + self._tabs.all():
+        sel = (
+            self.page.get_by_role("radio", name=re.compile(r"investimento|invest|aplica[cç][aã]o", re.I))
+            .or_(
+                self.page.locator(
+                    "button[class*='tab']:visible,[role=tab]:visible,label[for*='invest']:visible"
+                )
+            )
+        )
+        for t in sel.all():
             try:
-                if t.count() == 0:
+                if t.count() == 0 or not t.is_visible():
                     continue
                 cls = t.get_attribute("class") or ""
                 pressed = t.get_attribute("aria-pressed")
-                if pressed == "true" or "active" in cls:
-                    txt = t.inner_text().lower()
+                checked = t.get_attribute("checked")
+                if pressed == "true" or checked in ("", "checked", "true") or "active" in cls:
+                    txt = (t.inner_text() or t.get_attribute("value") or "").lower()
                     if re.search(r"invest|aplica", txt):
                         return True
             except Exception:

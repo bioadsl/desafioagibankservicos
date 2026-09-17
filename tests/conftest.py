@@ -54,7 +54,10 @@ UA_FALLBACK = (
 
 
 @pytest.fixture(scope="function")
-def context(browser: Browser) -> Generator[BrowserContext, None, None]:
+def context(browser: Browser, request: pytest.FixtureRequest) -> Generator[BrowserContext, None, None]:
+    traces_dir = os.path.join(REPORTS_DIR, "traces")
+    os.makedirs(traces_dir, exist_ok=True)
+    safe = request.node.name.translate({ord(c): "_" for c in ":/\\ "})
     ctx = browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent=UA_FALLBACK,
@@ -66,7 +69,10 @@ def context(browser: Browser) -> Generator[BrowserContext, None, None]:
             "Sec-Ch-Ua-Platform": '"Windows"',
         },
         permissions=["geolocation"],
+        record_video_dir=os.path.join(REPORTS_DIR, "videos"),
+        record_video_size={"width": 1280, "height": 720},
     )
+    ctx.tracing.start(screenshots=True, snapshots=True, sources=True)
     ctx.add_init_script("""
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
@@ -76,14 +82,51 @@ def context(browser: Browser) -> Generator[BrowserContext, None, None]:
     ctx.set_default_timeout(15000)
     ctx.set_default_navigation_timeout(30000)
     yield ctx
-    ctx.close()
+    try:
+        ctx.tracing.stop(path=os.path.join(traces_dir, f"{safe}.zip"))
+    except Exception:
+        pass
+    try:
+        ctx.close()
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="function")
-def page(context: BrowserContext) -> Generator[Page, None, None]:
+def page(context: BrowserContext, request: pytest.FixtureRequest) -> Generator[Page, None, None]:
     pg = context.new_page()
     yield pg
-    pg.close()
+    failed = False
+    try:
+        rep = getattr(request.node, "rep_call", None) or getattr(request.node, "rep_teardown", None)
+        failed = bool(rep and rep.failed)
+    except Exception:
+        pass
+    if failed:
+        safe = request.node.name.translate({ord(c): "_" for c in ":/\\ "})
+        try:
+            pg.screenshot(
+                path=os.path.join(REPORTS_DIR, f"FAIL_{safe}.png"),
+                full_page=True,
+            )
+        except Exception:
+            pass
+        try:
+            with open(os.path.join(REPORTS_DIR, f"FAIL_{safe}.html"), "w", encoding="utf-8") as f:
+                f.write(pg.content())
+        except Exception:
+            pass
+    try:
+        pg.close()
+    except Exception:
+        pass
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
 
 
 @pytest.fixture(scope="session")
