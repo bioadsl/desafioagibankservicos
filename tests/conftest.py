@@ -34,20 +34,45 @@ def browser(playwright: Playwright) -> Generator[Browser, None, None]:
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--window-size=1920,1080",
+            "--disable-blink-features=AutomationControlled",
+            "--start-maximized",
+            "--disable-infobars",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-background-timer-throttling",
         ],
     )
     yield browser
     browser.close()
 
 
+UA_FALLBACK = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/126.0.0.0 Safari/537.36"
+)
+
+
 @pytest.fixture(scope="function")
 def context(browser: Browser) -> Generator[BrowserContext, None, None]:
     ctx = browser.new_context(
         viewport={"width": 1920, "height": 1080},
+        user_agent=UA_FALLBACK,
         locale="pt-BR",
         timezone_id="America/Sao_Paulo",
         ignore_https_errors=True,
+        extra_http_headers={
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+        },
+        permissions=["geolocation"],
     )
+    ctx.add_init_script("""
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['pt-BR','pt','en'] });
+    window.chrome = { runtime: {} };
+    """)
     ctx.set_default_timeout(15000)
     ctx.set_default_navigation_timeout(30000)
     yield ctx
@@ -317,4 +342,10 @@ def pytest_runtest_makereport(item, call):
             except Exception:
                 extra.append({"type": "html", "content": html_body, "value": html_body})
 
-    report.extra = extra
+    try:
+        report.extras = extra
+    except Exception:
+        try:
+            report.extra = extra
+        except Exception:
+            pass
