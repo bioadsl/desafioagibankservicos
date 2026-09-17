@@ -4,6 +4,7 @@ import json
 from typing import Generator
 
 import pytest
+import pytest_html
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -311,6 +312,9 @@ def pytest_runtest_makereport(item, call):
                 + "".join(blocks)
                 + "</div>"
             )
-            extra.append({"type": "html", "content": html_body, "value": html_body})
+            try:
+                extra.append(pytest_html.extras.html(html_body))
+            except Exception:
+                extra.append({"type": "html", "content": html_body, "value": html_body})
 
     report.extra = extra
