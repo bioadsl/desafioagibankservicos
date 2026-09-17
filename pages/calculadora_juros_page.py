@@ -15,20 +15,24 @@ class CalculadoraJurosPage(BasePage):
         super().__init__(page)
         self.page_title = page.get_by_role(
             "heading", level=2, name=re.compile(r"juros|calculadora", re.IGNORECASE)
-        ).or_(page.get_by_role("heading").filter(has_text=re.compile(r"juros|compostos", re.I)))
+        )
         self._btn_divida = (
             page.get_by_role(
                 "tab", name=re.compile(r"d[íi]vida|devedor", re.IGNORECASE)
-            ).or_(page.get_by_role("button").filter(has_text=re.compile(r"d[íi]vida|devedor", re.I)))
+            ).or_(page.get_by_role("button")
+            .filter(has_text=re.compile(r"d[íi]vida|devedor", re.I)))
         )
         self._btn_invest = (
             page.get_by_role(
                 "tab", name=re.compile(r"investimento|aplicação|aplicacao", re.IGNORECASE)
-            ).or_(page.get_by_role("button").filter(has_text=re.compile(r"investimento|aplicação", re.I)))
+            ).or_(page.get_by_role("button")
+            .filter(has_text=re.compile(r"investimento|aplicação", re.I)))
         )
         self._tabs = page.locator(
+            "button[class*='tab']:visible, [role=tab]:visible, "
+            "label[for*='divida']:visible, label[for*='invest']:visible, "
             "button[class*='tab'], [role=tab], label[for*='divida'], label[for*='invest']"
-        ).filter(visible=True)
+        )
         self._v_ini_label = page.get_by_label(
             re.compile(r"valor\s*inicial|montante|capital|valor\s*presente|valor\s*do\s*empr[eé]stimo", re.I)
         )
@@ -42,17 +46,24 @@ class CalculadoraJurosPage(BasePage):
             re.compile(r"valor\s*mensal|aporte\s*mensal|parcela|mensal", re.IGNORECASE)
         )
         self._txt_inputs = page.locator(
-            "input[type='text'],input[type='number'],input:not([type])"
-        ).filter(visible=True)
+            "input[type='text']:visible, input[type='number']:visible, "
+            "input:not([type]):visible, "
+            "input[type='text'], input[type='number'], input:not([type])"
+        )
         self._btn_calc = page.get_by_role(
             "button", name=re.compile(r"calcular|simular|enviar", re.IGNORECASE)
         ).or_(page.locator(
+            "input[type=submit]:visible,button[type=submit]:visible,"
+            "[role=button]:visible,a[role=button]:visible,"
             "input[type=submit],button[type=submit],[role=button],a[role=button]"
-        ).filter(visible=True))
+        ))
         self._out = page.locator(
+            "div[class*='resultado']:visible, section[class*='result']:visible, "
+            "div[class*='result']:visible, [data-testid*='result']:visible, "
+            "[class*='montante']:visible, [class*='total']:visible, "
             "div[class*='resultado'], section[class*='result'], div[class*='result'], "
             "[data-testid*='result'], [class*='montante'], [class*='total']"
-        ).filter(visible=True)
+        )
 
     def open(self) -> None:
         self.go(f"{self.URL_AGI}{self.PATH}")
@@ -61,7 +72,7 @@ class CalculadoraJurosPage(BasePage):
             re.compile(r"juros|agibank", re.IGNORECASE), timeout=20000
         )
         try:
-            expect(self.page_title.first).to_be_visible(timeout=10000)
+            expect(self.page_title).to_be_visible(timeout=10000)
         except Exception:
             pass
 

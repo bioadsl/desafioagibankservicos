@@ -9,28 +9,43 @@ class BlogAgiSearchPage(BasePage):
     def __init__(self, page: Page) -> None:
         super().__init__(page)
         self._lupa = page.locator(
+            "button[aria-label*='pesquisa']:visible, a[aria-label*='pesquisa']:visible, "
+            "button[aria-label*='busca']:visible, a[aria-label*='busca']:visible, "
+            "[class*='search-toggle']:visible, [class*='search-icon']:visible, "
+            "svg[class*='search']:visible, "
             "button[aria-label*='pesquisa'], a[aria-label*='pesquisa'], "
             "button[aria-label*='busca'], a[aria-label*='busca'], "
             "[class*='search-toggle'], [class*='search-icon'], svg[class*='search']"
         )
         self.search = page.locator(
+            "input[type='search']:visible, input[name='s']:visible, "
+            "input[name*='search']:visible, input[id*='search']:visible, "
+            "[placeholder*='pesquisar']:visible, [placeholder*='buscar']:visible, "
+            "[placeholder*='Digite sua busca']:visible, "
             "input[type='search'], input[name='s'], input[name*='search'], "
-            "input[id*='search'], [placeholder*='pesquisar'], [placeholder*='buscar'], "
-            "[placeholder*='Digite sua busca']"
-        ).filter(visible=True)
+            "input[id*='search'], [placeholder*='pesquisar'], "
+            "[placeholder*='buscar'], [placeholder*='Digite sua busca']"
+        )
         self._submit = page.get_by_role(
             "button", name=re.compile(r"pesquisar|buscar|search", re.IGNORECASE)
         )
         self._posts = page.locator(
+            "article[class*='post']:visible, div[class*='post']:visible, "
+            "li[class*='search-result']:visible, h2[class*='entry-title']:visible, "
+            "h3[class*='title'] a:visible, "
             "article[class*='post'], div[class*='post'], li[class*='search-result'], "
             "h2[class*='entry-title'], h3[class*='title'] a"
-        ).filter(visible=True)
+        )
         self._empty = page.locator(
+            "div[class*='no-results']:visible, section[class*='not-found']:visible, "
+            "p:has-text('nenhum resultado'):visible, p:has-text('Nenhum resultado'):visible, "
+            "h1:has-text('nada encontrado'):visible, h1:has-text('Nada encontrado'):visible, "
             "div[class*='no-results'], section[class*='not-found'], "
             "p:has-text('nenhum resultado'), p:has-text('Nenhum resultado'), "
             "h1:has-text('nada encontrado'), h1:has-text('Nada encontrado')"
-        ).filter(visible=True)
+        )
         self._page_title = page.locator(
+            "h1[class*='page-title']:visible, h2[class*='page-title']:visible, "
             "h1[class*='page-title'], h2[class*='page-title']"
         )
 
@@ -39,12 +54,15 @@ class BlogAgiSearchPage(BasePage):
         self.page.wait_for_load_state("networkidle")
 
     def _toggle_search_if_needed(self) -> None:
-        if self.search.count() > 0 and self.search.first.is_visible():
+        if self.search.first.count() > 0 and self.search.first.is_visible():
             return
         for cand in [self._lupa.first, self._lupa]:
             try:
                 if cand.count() > 0:
-                    self.page.mouse.click(0, 0)
+                    try:
+                        self.page.mouse.click(10, 10)
+                    except Exception:
+                        pass
                     try:
                         cand.click(timeout=5000, force=True)
                     except Exception:
@@ -52,8 +70,8 @@ class BlogAgiSearchPage(BasePage):
                             cand.dispatch_event("click")
                         except Exception:
                             pass
-                    self.page.wait_for_timeout(500)
-                    if self.search.count() > 0 and self.search.first.is_visible():
+                    self.page.wait_for_timeout(700)
+                    if self.search.first.count() > 0 and self.search.first.is_visible():
                         return
             except Exception:
                 continue

@@ -12,7 +12,7 @@ class CalculadoraDiasUteisPage(BasePage):
         super().__init__(page)
         self.page_title = page.get_by_role(
             "heading", level=2, name=re.compile(r"dias úteis|calculadora", re.IGNORECASE)
-        ).or_(page.get_by_role("heading").filter(has_text=re.compile(r"dias úteis|calculadora", re.I)))
+        )
         self._dt_ini_label = page.get_by_label(
             re.compile(r"data\s*inicial|data\s*de\s*in[ií]cio", re.IGNORECASE)
         )
@@ -20,24 +20,36 @@ class CalculadoraDiasUteisPage(BasePage):
             re.compile(r"data\s*final|data\s*fim", re.IGNORECASE)
         )
         self._dt_ini = page.locator(
-            "input[type='text'],input[type='date'],input[type='number'],input:not([type])"
-        ).filter(visible=True)
+            "input[type='text']:visible, input[type='date']:visible, "
+            "input[type='number']:visible, input:not([type]):visible, "
+            "input[type='text'], input[type='date'], input[type='number'], input:not([type])"
+        )
         self._dt_fim = page.locator(
-            "input[type='text'],input[type='date'],input[type='number'],input:not([type])"
-        ).filter(visible=True)
+            "input[type='text']:visible, input[type='date']:visible, "
+            "input[type='number']:visible, input:not([type]):visible, "
+            "input[type='text'], input[type='date'], input[type='number'], input:not([type])"
+        )
         self._btn_calc = page.get_by_role(
             "button", name=re.compile(r"calcular|simular|enviar", re.IGNORECASE)
         ).or_(page.locator(
+            "input[type=submit]:visible,button[type=submit]:visible,"
+            "[role=button]:visible,a[role=button]:visible,"
             "input[type=submit],button[type=submit],[role=button],a[role=button]"
-        ).filter(visible=True))
+        ))
         self._out = page.locator(
+            "div[class*='resultado']:visible, span[class*='resultado']:visible, "
+            "section[class*='result']:visible, p:has-text('úteis'):visible, "
+            "p:has-text('dias'):visible, [data-testid*='result']:visible, "
             "div[class*='resultado'], span[class*='resultado'], section[class*='result'], "
             "p:has-text('úteis'), p:has-text('dias'), [data-testid*='result']"
-        ).filter(visible=True)
+        )
         self._err = page.locator(
-            "span[class*='erro'], div[class*='error'], small[class*='error'], [role='alert'], "
-            "[class*='obrigat'], [class*='required']"
-        ).filter(visible=True)
+            "span[class*='erro']:visible, div[class*='error']:visible, "
+            "small[class*='error']:visible, [role='alert']:visible, "
+            "[class*='obrigat']:visible, [class*='required']:visible, "
+            "span[class*='erro'], div[class*='error'], small[class*='error'], "
+            "[role='alert'], [class*='obrigat'], [class*='required']"
+        )
 
     def open(self) -> None:
         self.go(f"{self.URL_AGI}{self.PATH}")
@@ -46,7 +58,7 @@ class CalculadoraDiasUteisPage(BasePage):
             re.compile(r"dias-uteis|agibank", re.IGNORECASE), timeout=20000
         )
         try:
-            expect(self.page_title.first).to_be_visible(timeout=10000)
+            expect(self.page_title).to_be_visible(timeout=10000)
         except Exception:
             pass
 
