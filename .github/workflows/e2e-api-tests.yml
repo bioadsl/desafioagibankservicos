@@ -11,6 +11,10 @@ jobs:
     name: Run Web E2E + API Tests
     runs-on: ubuntu-latest
 
+    env:
+      URL_AGI: ${{ secrets.URL_AGI || 'https://agibank.com.br' }}
+      URL_BLOG: ${{ secrets.URL_BLOG || 'https://blogdoagi.com.br' }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,8 +35,73 @@ jobs:
       - name: Create reports directory
         run: mkdir -p reports
 
+      - name: Check web application availability
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import requests
+
+          base_agi = os.environ["URL_AGI"].rstrip("/")
+          base_blog = os.environ["URL_BLOG"].rstrip("/")
+
+          routes = [
+              base_agi,
+              base_agi + "/calculadora-de-juros-compostos",
+              base_agi + "/calculadora-de-dias-uteis",
+              base_blog,
+          ]
+
+          print("=" * 72)
+          print(f"URL_AGI ..: {base_agi}")
+          print(f"URL_BLOG : {base_blog}")
+          print("=" * 72)
+
+          failed = 0
+          for url in routes:
+              print(f"\n→ GET {url}")
+              try:
+                  resp = requests.get(
+                      url,
+                      timeout=30,
+                      allow_redirects=True,
+                      headers={
+                          "User-Agent": (
+                              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/126.0.0.0 Safari/537.36"
+                          ),
+                          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+                      },
+                  )
+              except Exception as exc:
+                  print(f"  status: NETWORK ERROR — {exc!r}")
+                  failed += 1
+                  continue
+              print(f"  status: {resp.status_code}")
+              print(f"  final : {resp.url}")
+              print(f"  ctype : {resp.headers.get('content-type')}")
+              title = ""
+              ct = resp.headers.get("content-type", "")
+              if "text/html" in ct and resp.status_code < 500:
+                  import re as _re
+                  m = _re.search(r"<title[^>]*>(.*?)</title>", resp.text, _re.S | _re.I)
+                  if m:
+                      title = m.group(1).strip()
+              if title:
+                  print(f"  title : {title}")
+              if resp.status_code >= 400:
+                  print(f"  ⚠️  HTTP status >= 400 (pode ser bloqueio/CDN/Cloudflare)")
+              if ct and "text/html" not in ct and resp.status_code < 400:
+                  print(f"  ⚠️  resposta não é HTML")
+          print()
+          if failed:
+              print(f"{failed} falhas de rede — impossível rodar E2E web confiável.")
+              sys.exit(0 if os.environ.get("CI_IGNORE_UNAVAILABLE") else 2)
+          PY
+
       - name: Run full test suite (Web + API)
-        run: pytest
+        run: pytest -vv
         continue-on-error: false
 
       - name: Upload test reports artifact

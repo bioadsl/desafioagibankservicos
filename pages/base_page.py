@@ -1,39 +1,49 @@
+import os
+from pathlib import Path
+
 from playwright.sync_api import Page, Locator, expect
+
+
+REPORTS_DIR = Path("reports")
+
+
+def debug_page(page: Page, name: str) -> None:
+    REPORTS_DIR.mkdir(exist_ok=True, parents=True)
+    safe = name.translate({ord(c): "_" for c in ":/\\ "})
+    try:
+        page.screenshot(path=str(REPORTS_DIR / f"debug_{safe}.png"), full_page=True)
+    except Exception:
+        pass
+    try:
+        print(f"\n[DEBUG:{name}] URL..........: {page.url}")
+    except Exception:
+        pass
+    try:
+        print(f"[DEBUG:{name}] TITLE........: {page.title()!r}")
+    except Exception:
+        pass
+    try:
+        body = page.locator("body").inner_text(timeout=3000).strip() or ""
+        print(f"[DEBUG:{name}] BODY[0:2000].: {body[:2000]!r}")
+    except Exception:
+        try:
+            body = page.content()[:2000]
+            print(f"[DEBUG:{name}] HTML[0:2000].: {body!r}")
+        except Exception:
+            print(f"[DEBUG:{name}] BODY.........: <unavailable>")
 
 
 class BasePage:
     """Base para Page Objects — helpers genéricos e waits explícitos."""
 
-    URL_AGI = "https://agibank.com.br"
-    URL_BLOG = "https://blogdoagi.com.br"
+    URL_AGI = os.environ.get("URL_AGI", "https://agibank.com.br").rstrip("/")
+    URL_BLOG = os.environ.get("URL_BLOG", "https://blogdoagi.com.br").rstrip("/")
 
     def __init__(self, page: Page) -> None:
         self.page = page
 
-    def go(self, url: str) -> None:
+    def go(self, url: str, debug_name: str | None = None) -> None:
         self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
-
-    def w8vis(self, loc: Locator, timeout: int = 15000) -> Locator:
-        expect(loc).to_be_visible(timeout=timeout)
-        return loc
-
-    def w8ena(self, loc: Locator, timeout: int = 15000) -> Locator:
-        expect(loc).to_be_enabled(timeout=timeout)
-        return loc
-
-    def click(self, loc: Locator, timeout: int = 15000) -> None:
-        self.w8vis(loc, timeout)
-        self.w8ena(loc, timeout)
-        loc.click()
-
-    def fill(self, loc: Locator, text: str, timeout: int = 15000) -> None:
-        self.w8vis(loc, timeout)
-        loc.fill(text)
-
-    def text(self, loc: Locator, timeout: int = 15000) -> str:
-        self.w8vis(loc, timeout)
-        return loc.inner_text()
-
-    def select(self, loc: Locator, label: str, timeout: int = 15000) -> None:
-        self.w8vis(loc, timeout)
-        loc.select_option(label=label)
+        self.page.wait_for_load_state("networkidle")
+        if debug_name:
+            debug_page(self.page, debug_name)

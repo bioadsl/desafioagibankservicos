@@ -2,7 +2,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from pages.base_page import BasePage
+from pages.base_page import BasePage, debug_page
 
 
 class CalculadoraJurosPage(BasePage):
@@ -32,6 +32,7 @@ class CalculadoraJurosPage(BasePage):
         self.go(f"{self.URL_AGI}{self.PATH}")
         self.page.wait_for_load_state("networkidle")
         self._aceitar_cookies()
+        debug_page(self.page, "calculadora_juros_compostos")
         expect(self.page).to_have_url(
             re.compile(r"juros|agibank", re.IGNORECASE), timeout=20000
         )

@@ -2,7 +2,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from pages.base_page import BasePage
+from pages.base_page import BasePage, debug_page
 
 
 class BlogAgiSearchPage(BasePage):
@@ -17,6 +17,7 @@ class BlogAgiSearchPage(BasePage):
             timeout=30000,
         )
         self.page.wait_for_load_state("networkidle")
+        debug_page(self.page, "blog_agi_home")
 
         toggle = self.page.get_by_role(
             "button", name="Pesquisar"
