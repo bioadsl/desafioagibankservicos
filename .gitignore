@@ -1,0 +1,49 @@
+# Bytecode Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+.venv
+venv
+env
+ENV
+
+# Caches
+.cache
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.ipynb_checkpoints
+
+# Artefatos de build
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Relatórios e logs (exceto exemplos)
+reports/*
+!reports/.gitkeep
+reports/api_logs/*
+
+# Playwright
+playwright/.cache
+.ms-playwright
+
+# IDEs / Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
