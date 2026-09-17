@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -16,7 +18,7 @@ class TestCalculadoraJuros:
     def test_calculo_modo_divida(self, page: Page) -> None:
         self.calc.open()
         expect(page).to_have_url(
-            lambda u: "juros" in u.lower() or "agibank" in u, timeout=20000
+            re.compile(r"juros|agibank", re.IGNORECASE), timeout=20000
         )
         self.calc.calc_divida("5000", "2", "12")
 
@@ -37,7 +39,7 @@ class TestCalculadoraJuros:
     def test_calculo_modo_investimento(self, page: Page) -> None:
         self.calc.open()
         expect(page).to_have_url(
-            lambda u: "juros" in u.lower() or "agibank" in u, timeout=20000
+            re.compile(r"juros|agibank", re.IGNORECASE), timeout=20000
         )
         self.calc.calc_investimento("10000", "500", "0.8", "24")
 

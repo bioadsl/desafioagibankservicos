@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -15,7 +17,7 @@ class TestCalculadoraDiasUteis:
     def test_calculo_cenario_feliz(self, page: Page) -> None:
         self.calc.open()
         expect(page).to_have_url(
-            lambda u: "dias-uteis" in u or "agibank" in u, timeout=20000
+            re.compile(r"dias-uteis|agibank", re.IGNORECASE), timeout=20000
         )
         self.calc.calcular_dias("01/01/2025", "31/01/2025")
 

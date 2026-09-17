@@ -12,11 +12,15 @@ class CalculadoraJurosPage(BasePage):
 
     def __init__(self, page: Page) -> None:
         super().__init__(page)
-        self._btn_divida = page.get_by_role(
-            "button", name=re.compile(r"d[íi]vida", re.IGNORECASE)
+        self._btn_divida = page.locator(
+            "button:has-text('Dívida'), button:has-text('divida'), label[for*='divida'], "
+            "label[for*='devedor'], [class*='debt'] button, [class*='divida'] button, "
+            "button[class*='tab'], [role=tab]"
         )
-        self._btn_invest = page.get_by_role(
-            "button", name=re.compile(r"investimento", re.IGNORECASE)
+        self._btn_invest = page.locator(
+            "button:has-text('Investimento'), label[for*='invest'], "
+            "[class*='invest'] button, [class*='investimento'] button, "
+            "button[class*='tab'], [role=tab]"
         )
 
         self._v_ini = page.locator(
@@ -34,8 +38,9 @@ class CalculadoraJurosPage(BasePage):
             "input[id*='mensal'], input[name*='mensal'], [placeholder*='mensal'], [placeholder*='aporte']"
         )
 
-        self._btn_calc = page.get_by_role(
-            "button", name=re.compile(r"calcular", re.IGNORECASE)
+        self._btn_calc = page.locator(
+            "button[type=submit], input[type=submit], [role=button], "
+            "button[class*='calc'], button[id*='calc'], button[name*='calc']"
         )
         self._out = page.locator(
             "div[class*='resultado'], section[class*='result'], div[class*='result']"

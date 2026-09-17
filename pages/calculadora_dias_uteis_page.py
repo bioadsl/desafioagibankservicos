@@ -15,8 +15,9 @@ class CalculadoraDiasUteisPage(BasePage):
         self._dt_fim = page.locator(
             "input[id*='dataFinal'], input[name*='dataFinal'], [placeholder*='final']"
         )
-        self._btn_calc = page.get_by_role(
-            "button", name=re.compile(r"calcular", re.IGNORECASE)
+        self._btn_calc = page.locator(
+            "button[type=submit], input[type=submit], [role=button], "
+            "button[class*='calc'], button[id*='calc'], button[name*='calc']"
         )
         self._out = page.locator(
             "div[class*='resultado'], span[class*='resultado'], section[class*='result']"

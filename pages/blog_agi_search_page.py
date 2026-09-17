@@ -36,10 +36,32 @@ class BlogAgiSearchPage(BasePage):
         self.go(self.URL_BLOG)
 
     def click_lupa(self) -> None:
-        self.click(self._lupa.first)
+        for loc in (self._lupa.first, self._lupa):
+            try:
+                if loc.count() > 0:
+                    self.click(loc)
+                    break
+            except Exception:
+                continue
 
-    def fill_busca(self, termo: str) -> None:
-        self.fill(self._search.first, termo)
+    def fill_busca(self, termo: str, _tries: int = 0) -> None:
+        if _tries > 1:
+            self._search.first.fill(termo)
+            return
+        el = self._search.first
+        if el.count() > 0 and el.is_visible():
+            self.fill(el, termo)
+            return
+        try:
+            self.page.locator(".search-field,.search-form input,[class*='search'] input").first.wait_for(
+                state="visible", timeout=6000
+            )
+        except Exception:
+            pass
+        if el.count() > 0 and el.is_visible():
+            self.fill(el, termo)
+        else:
+            self.fill_busca(termo, _tries + 1)
 
     def submit(self) -> None:
         if self._submit.count() > 0 and self._submit.first.is_visible():
