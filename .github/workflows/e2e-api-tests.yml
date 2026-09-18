@@ -99,7 +99,7 @@ jobs:
           PY
 
       - name: Run full test suite (Web + API)
-        run: pytest -vv
+        run: pytest -vv --html=reports/report.html --self-contained-html
         continue-on-error: false
 
       - name: Upload test reports artifact

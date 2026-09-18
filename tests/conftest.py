@@ -334,6 +334,67 @@ def pytest_configure(config) -> None:
     meta["Pasta Transacoes"] = os.path.relpath(API_LOGS_DIR, PROJECT_ROOT)
 
 
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Anti-regressao: avisa com WARNING se --html foi fornecido mas 0 testes
+    foram realmente EXECUTADOS (nao so coletados, ex: --collect-only).
+
+    Esse era o bug do report vazio: addopts do pytest.ini tinha --html, entao
+    pytest --collect-only sobrescrevia o report com 0 resultados.
+    """
+
+    import sys as _sys
+
+    def _tem_html_flag() -> bool:
+        argv_flag = any(a.startswith("--html") for a in _sys.argv[1:])
+        try:
+            cfg1 = bool(getattr(config.option, "htmlpath", None))
+        except Exception:
+            cfg1 = False
+        try:
+            cfg2 = bool(getattr(config.option, "html", None))
+        except Exception:
+            cfg2 = False
+        return bool(argv_flag or cfg1 or cfg2)
+
+    html_flag = _tem_html_flag()
+
+    try:
+        stats = getattr(terminalreporter, "stats", {}) or {}
+    except Exception:
+        stats = {}
+
+    executed_keys = {"passed", "failed", "error", "skipped", "xfailed", "xpassed"}
+    total_exec = sum(len(stats.get(k, [])) for k in executed_keys)
+
+    if html_flag and total_exec == 0:
+        warning = "\n".join([
+            "",
+            "=" * 72,
+            "!!  AVISO  !!  RELATORIO HTML PODE ESTAR VAZIO / SEM SERVICOS",
+            "=" * 72,
+            "- Voce forneceu --html=... mas 0 testes foram executados.",
+            "- Isso normalmente acontece quando voce roda:",
+            "    * pytest --collect-only          (so coleta, nao roda os testes)",
+            "    * pytest -m marker_que_nao_existe  (0 testes batem o marker)",
+            "    * pytest -k keyword_nao_existe    (0 testes batem o keyword)",
+            "",
+            "   [CORRETO] Para gerar um relatorio COM os resultados dos servicos,",
+            "   remova --collect-only e rode os testes de verdade:",
+            "   * API: pytest -m api -vv --html=reports/report.html",
+            "   * Web+API completo (CI): pytest -vv --html=reports/report.html",
+            "=" * 72,
+            "",
+        ])
+        try:
+            terminalreporter.write(warning, red=True, bold=True)
+            terminalreporter.write("\n", flush=True)
+        except Exception:
+            try:
+                print(warning, file=_sys.stderr, flush=True)
+            except Exception:
+                print(warning)
+
+
 def _relative_if(p: str) -> str:
     return os.path.relpath(p, PROJECT_ROOT) if p else "<n/a>"
 
@@ -350,32 +411,58 @@ def _latest_log(ext: str = ".log") -> str:
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
+
     if report.when != "call" or not hasattr(item, "_request"):
         return
+
     try:
         client = item.funcargs.get("api_client")
     except Exception:
         client = None
-    extra = getattr(report, "extra", [])
+
+    try:
+        extra = list(getattr(report, "extra", []) or [])
+    except Exception:
+        extra = []
 
     if client is not None:
-        txs = client.tx_list()
+        try:
+            txs = client.tx_list()
+        except Exception:
+            txs = []
         if txs:
             blocks = []
             for t in txs:
                 has_err = bool(t.errors)
                 color = "#c9302c" if has_err else "#337ab7"
-                req_h = "<br>".join(f"{k}: {v}" for k, v in t.req_headers.items()) or "<i>vazio</i>"
-                res_h = "<br>".join(f"{k}: {v}" for k, v in (t.res_headers or {}).items()) or "<i>vazio</i>"
+                try:
+                    req_h = "<br>".join(
+                        f"{k}: {v}" for k, v in (t.req_headers or {}).items()
+                    ) or "<i>vazio</i>"
+                except Exception:
+                    req_h = "<i>indisponivel</i>"
+                try:
+                    res_h = "<br>".join(
+                        f"{k}: {v}" for k, v in (t.res_headers or {}).items()
+                    ) or "<i>vazio</i>"
+                except Exception:
+                    res_h = "<i>indisponivel</i>"
                 badge = (
-                    f" &nbsp; <span style='background:#fff;color:{color};padding:1px 6px;border-radius:3px;font-size:11px;'>"
-                    f"{len(t.errors)} FALHA(S)</span>"
+                    (
+                        f" &nbsp; <span style='background:#fff;color:{color};"
+                        f"padding:1px 6px;border-radius:3px;font-size:11px;'>"
+                        f"{len(t.errors)} FALHA(S)</span>"
+                    )
                     if has_err
                     else ""
                 )
                 errs_html = (
-                    f'<p style="margin-top:6px;color:{color};font-weight:bold;">Falhas de validação:</p>'
-                    f'<ul style="margin:0;color:{color};">{"".join(f"<li>{e}</li>" for e in t.errors)}</ul>'
+                    (
+                        f'<p style="margin-top:6px;color:{color};font-weight:bold;">'
+                        f"Falhas de validação:</p>"
+                        f'<ul style="margin:0;color:{color};">'
+                        f'{"".join(f"<li>{e}</li>" for e in t.errors)}</ul>'
+                    )
                     if has_err
                     else ""
                 )
@@ -383,15 +470,15 @@ def pytest_runtest_makereport(item, call):
                     f"""
                     <details style="margin-bottom:10px;border:1px solid {color};border-radius:4px;overflow:hidden;">
                       <summary style="cursor:pointer;background:{color};color:#fff;padding:6px 10px;font-weight:bold;">
-                        {t.id} &mdash; {t.method} {t.url} &nbsp; status: <b>{t.res_status} {t.res_reason}</b>
-                        &nbsp;<small>({t.elapsed_ms} ms)</small>{badge}
+                        {getattr(t, 'id', 'TX')} &mdash; {getattr(t, 'method', 'GET')} {getattr(t, 'url', '')} &nbsp; status: <b>{getattr(t, 'res_status', '')} {getattr(t, 'res_reason', '')}</b>
+                        &nbsp;<small>({getattr(t, 'elapsed_ms', 0)} ms)</small>{badge}
                       </summary>
                       <div style="padding:8px 12px;font-family:monospace;font-size:12px;">
-                        <p style="margin:2px 0;"><b>Timestamp:</b> {t.timestamp}</p>
+                        <p style="margin:2px 0;"><b>Timestamp:</b> {getattr(t, 'timestamp', '')}</p>
                         <p style="margin:2px 0;"><b>Request Headers:</b><br>{req_h}</p>
-                        <p style="margin:2px 0;"><b>Request Body:</b><br>{_fmt_html_body(t.req_body)}</p>
+                        <p style="margin:2px 0;"><b>Request Body:</b><br>{_fmt_html_body(getattr(t, 'req_body', ''))}</p>
                         <p style="margin:2px 0;"><b>Response Headers:</b><br>{res_h}</p>
-                        <p style="margin:2px 0;"><b>Response Body:</b><br>{_fmt_html_body(t.res_body)}</p>
+                        <p style="margin:2px 0;"><b>Response Body:</b><br>{_fmt_html_body(getattr(t, 'res_body', ''))}</p>
                         {errs_html}
                       </div>
                     </details>
@@ -409,10 +496,11 @@ def pytest_runtest_makereport(item, call):
             except Exception:
                 extra.append({"type": "html", "content": html_body, "value": html_body})
 
-    try:
-        report.extras = extra
-    except Exception:
+    if extra:
         try:
-            report.extra = extra
+            report.extras = extra
         except Exception:
-            pass
+            try:
+                report.extra = extra
+            except Exception:
+                pass
