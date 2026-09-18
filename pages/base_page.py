@@ -37,7 +37,7 @@ class BasePage:
     """Base para Page Objects — helpers genéricos e waits explícitos."""
 
     URL_AGI = os.environ.get("URL_AGI", "https://agibank.com.br").rstrip("/")
-    URL_BLOG = os.environ.get("URL_BLOG", "https://blogdoagi.com.br").rstrip("/")
+    URL_BLOG = os.environ.get("URL_BLOG", "https://blog.agibank.com.br").rstrip("/")
 
     def __init__(self, page: Page) -> None:
         self.page = page

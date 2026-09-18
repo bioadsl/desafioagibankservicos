@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 
 from playwright.sync_api import Page, expect
 
@@ -54,15 +55,33 @@ class BlogAgiSearchPage(BasePage):
             f"Titulo: {title!r}. Body[:1500]: {body!r}"
         )
 
-    def pesquisar(self, termo: str) -> None:
-        self.page.goto(
-            self.URL_BLOG,
-            wait_until="domcontentloaded",
-            timeout=30000,
-        )
-        self.page.wait_for_load_state("networkidle")
-        self._esperar_cloudflare_passar(timeout_ms=45000)
-        debug_page(self.page, "blog_agi_home")
+    def _pesquisar_por_url_direta(self, termo: str) -> bool:
+        """Estrategia PRIMARIA (padrao WordPress /?s={termo}).
+        Funciona independente de o tema ter campo de busca visivel ou nao.
+        Retorna True se a navegacao deu certo e caiu em pagina valida."""
+        try:
+            search_url = f"{self.URL_BLOG}/?s={urllib.parse.quote(termo)}"
+            self.page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
+            self.page.wait_for_load_state("networkidle")
+            self._esperar_cloudflare_passar(timeout_ms=45000)
+            return True
+        except Exception:
+            return False
+
+    def _pesquisar_por_ui(self, termo: str) -> bool:
+        """Estrategia FALLBACK: tentar clicar no toggle de busca e preencher
+        input[name=s] (funciona em temas que tem o campo visivel/hamburguer)."""
+        try:
+            self.page.goto(
+                self.URL_BLOG,
+                wait_until="domcontentloaded",
+                timeout=30000,
+            )
+            self.page.wait_for_load_state("networkidle")
+            self._esperar_cloudflare_passar(timeout_ms=45000)
+        except Exception:
+            return False
+        debug_page(self.page, "blog_agi_home_ui_fallback")
 
         toggle = self.page.get_by_role(
             "button", name="Pesquisar"
@@ -98,7 +117,12 @@ class BlogAgiSearchPage(BasePage):
             ".search-form input:visible"
         ).first
 
-        expect(search_input).to_be_visible(timeout=15000)
+        if search_input.count() == 0:
+            return False
+        try:
+            expect(search_input).to_be_visible(timeout=5000)
+        except Exception:
+            return False
         try:
             search_input.click()
             search_input.fill(termo)
@@ -107,39 +131,71 @@ class BlogAgiSearchPage(BasePage):
                 search_input.focus()
                 self.page.keyboard.type(termo, delay=30)
             except Exception:
-                self.page.evaluate(
-                    """([sel, val]) => {
-                        const el = document.querySelector(sel);
-                        if (!el) return;
-                        const unwrap = el.closest('div,form,section,header') || el;
-                        ['style','display','visibility','hidden'].forEach(a => {
-                            unwrap.removeAttribute(a); el.removeAttribute(a);
-                        });
-                        unwrap.style.setProperty('display','block','important');
-                        unwrap.style.setProperty('visibility','visible','important');
-                        unwrap.style.setProperty('opacity','1','important');
-                        el.style.setProperty('display','block','important');
-                        el.style.setProperty('visibility','visible','important');
-                        el.removeAttribute('disabled'); el.removeAttribute('readonly');
-                        el.value = val;
-                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                    }""",
-                    ["input.search-field,input[name='s'],input[type='search']", termo],
-                )
+                try:
+                    self.page.evaluate(
+                        """([sel, val]) => {
+                            const el = document.querySelector(sel);
+                            if (!el) return;
+                            const unwrap = el.closest('div,form,section,header') || el;
+                            ['style','display','visibility','hidden'].forEach(a => {
+                                unwrap.removeAttribute(a); el.removeAttribute(a);
+                            });
+                            unwrap.style.setProperty('display','block','important');
+                            unwrap.style.setProperty('visibility','visible','important');
+                            unwrap.style.setProperty('opacity','1','important');
+                            el.style.setProperty('display','block','important');
+                            el.style.setProperty('visibility','visible','important');
+                            el.removeAttribute('disabled'); el.removeAttribute('readonly');
+                            el.value = val;
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                        }""",
+                        ["input.search-field,input[name='s'],input[type='search']", termo],
+                    )
+                except Exception:
+                    return False
 
+        submit_ok = False
         try:
             btn = self.page.get_by_role(
                 "button", name=re.compile(r"pesquisar|buscar|search", re.I)
             )
             if btn.count() > 0 and btn.first.is_visible():
                 btn.first.click(timeout=5000)
-            else:
-                search_input.press("Enter")
+                submit_ok = True
         except Exception:
-            search_input.press("Enter")
+            pass
+        if not submit_ok:
+            try:
+                search_input.press("Enter")
+                submit_ok = True
+            except Exception:
+                pass
+        if submit_ok:
+            try:
+                self.page.wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            return True
+        return False
 
-        self.page.wait_for_load_state("domcontentloaded")
+    def pesquisar(self, termo: str) -> None:
+        assert isinstance(termo, str) and termo.strip(), (
+            "Termo de busca nao pode ser vazio/None"
+        )
+
+        ok = self._pesquisar_por_url_direta(termo)
+        if not ok:
+            ok = self._pesquisar_por_ui(termo)
+
+        if not ok:
+            debug_page(self.page, "blog_search_failed")
+            raise AssertionError(
+                f"Nenhuma estrategia de busca (URL direta /?s= nem UI toggle/input) "
+                f"funcionou para termo={termo!r}"
+            )
+
+        debug_page(self.page, "blog_search_results")
 
     def qtd_resultados(self) -> int:
         return self.page.locator(
