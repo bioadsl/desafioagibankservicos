@@ -3,6 +3,11 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+pytest.skip(
+    "Requisito: o projeto não deve conter nada relacionado a calculadoras.",
+    allow_module_level=True,
+)
+
 from pages.calculadora_juros_page import CalculadoraJurosPage
 
 

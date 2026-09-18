@@ -47,8 +47,6 @@ jobs:
 
           routes = [
               base_agi,
-              base_agi + "/calculadora-de-juros-compostos",
-              base_agi + "/calculadora-de-dias-uteis",
               base_blog,
           ]
 

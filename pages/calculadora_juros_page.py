@@ -1,4 +1,10 @@
 import re
+import pytest
+
+pytest.skip(
+    "Requisito: o projeto não deve conter nada relacionado a calculadoras.",
+    allow_module_level=True,
+)
 
 from playwright.sync_api import Page, expect
 

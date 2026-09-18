@@ -18,9 +18,7 @@ Suíte executável localmente e via **GitHub Actions** com relatório consolidad
 ├── .github/workflows/e2e-api-tests.yml   # Pipeline CI/CD (push/PR)
 ├── pages/                                 # Page Objects (Playwright)
 │   ├── base_page.py                      # helpers + waits explícitos
-│   ├── calculadora_dias_uteis_page.py
-│   ├── calculadora_juros_page.py
-│   └── blog_agi_search_page.py
+│   └── blog_agi_search_page.py           # Busca no Blog do Agi
 ├── tests/
 │   ├── conftest.py                       # fixtures + pytest-html hooks
 │   ├── web/                              # Testes E2E (Agibank + Blog do Agi)
@@ -90,7 +88,7 @@ Toda requisição é persistida em 3 formatos dentro de `reports/api_logs/`:
 | `funcional` | Testes focados em comportamento de negócio |
 | `erro` | Cenários negativos / fluxo de erro |
 | `happy_path` | Fluxo principal / sem erros |
-| `blog_agi`, `calculadora_dias_uteis`, `calculadora_juros`, `dog_api` | Por módulo/sistema |
+| `blog_agi`, `dog_api` | Por módulo/sistema |
 
 ## CI/CD — GitHub Actions
 
@@ -106,12 +104,10 @@ O workflow `.github/workflows/e2e-api-tests.yml` roda automaticamente em
 
 ## Cobertura dos desafios
 
-### 🧪 Camada Web (3 suítes)
+### 🧪 Camada Web
 
 | Page Object | Cenários |
 |---|---|
-| `CalculadoraDiasUteisPage` | ✅ Cálculo feliz; ✅ validação de campos obrigatórios vazios |
-| `CalculadoraJurosPage` | ✅ Modo **Dívida** (cenário feliz); ✅ Modo **Investimento** (cenário feliz) |
 | `BlogAgiSearchPage` | ✅ Busca por termo existente (`Empréstimo`); ✅ busca sem resultados |
 
 ### 🌐 Camada API — Dog API (https://dog.ceo/dog-api)
