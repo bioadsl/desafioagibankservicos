@@ -1,3 +1,37 @@
+# ==============================================================================
+# BLOCO PRINCIPAL: ANTI-SUBIDA DE RELATORIOS / LOGS / ARTEFATOS DE EXECUCAO
+# ------------------------------------------------------------------------------
+# NUNCA commitar relatorios de teste. Motivos:
+#   1. Sao sempre gerados por execucao (pytest --html / playwright / API logs)
+#   2. Diferem em cada run (tamanho, timestamps, conteudo transiente)
+#   3. O CI GitHub Actions ja guarda tudo em upload-artifact (7 dias retention)
+#   4. Crescem o repositorio desnecessariamente (videos e traces sao pesados)
+# ==============================================================================
+reports/
+reports/**/*
+!reports/.gitkeep
+reports/*.html
+reports/*.json
+reports/*.txt
+reports/*.log
+reports/*.csv
+reports/*.xml
+reports/*.zip
+reports/videos/
+reports/test-results/
+reports/traces/
+reports/screenshots/
+reports/api_logs/
+
+# Pastas com artefatos que podem vir a ser criadas fora de reports/
+logs/
+test-results/
+videos/
+traces/
+screenshots/
+*.zip
+
+# ------------------------------------------------------------------------------
 # Bytecode Python
 __pycache__/
 *.py[cod]
@@ -23,12 +57,7 @@ dist/
 *.egg
 pip-wheel-metadata/
 
-# Relatórios e logs (exceto exemplos)
-reports/*
-!reports/.gitkeep
-reports/api_logs/*
-
-# Playwright
+# Playwright (browsers baixados / cache global + cache local)
 playwright/.cache
 .ms-playwright
 
