@@ -47,6 +47,32 @@ def random_img_schema(body: Any) -> None:
     assert IMG_URL_RE.match(msg), f"Invalid image URL: {msg!r}"
 
 
+def breed_random_img_schema(body: Any) -> None:
+    assert isinstance(body, dict), "Body not dict"
+    st = body.get("status")
+    assert isinstance(st, str) and st == "success", (
+        f"Expected status='success', got {st!r}"
+    )
+    msg = body["message"]
+    assert isinstance(msg, str) and msg.strip(), "Breed random image URL missing/empty"
+    assert IMG_URL_RE.match(msg), f"Invalid breed random image URL: {msg!r}"
+
+
+def breed_random_multiple_schema(body: Any, expected_n: int = 3) -> None:
+    assert isinstance(body, dict), "Body not dict"
+    st = body.get("status")
+    assert isinstance(st, str) and st == "success", (
+        f"Expected status='success', got {st!r}"
+    )
+    msg = body["message"]
+    assert isinstance(msg, list), f"message must be list (got {type(msg).__name__})"
+    assert len(msg) == expected_n, (
+        f"Expected {expected_n} image URLs, got {len(msg)}. Values: {msg}"
+    )
+    bad = [u for u in msg if not (isinstance(u, str) and IMG_URL_RE.match(u or ""))]
+    assert len(bad) == 0, f"Invalid image URL(s) in breed random/{expected_n}: {bad[:5]}"
+
+
 def error_schema(body: Any) -> None:
     assert isinstance(body, dict), "Error body not dict"
     st = body.get("status")
@@ -228,3 +254,71 @@ class TestDogApi:
             return
 
         pytest.fail(f"Unexpected HTTP {http}. Expect 200 (status='error') or 404.")
+
+    @pytest.mark.api
+    @pytest.mark.dog_api
+    @pytest.mark.funcional
+    def test_breed_random_image_single(self, api_client) -> None:
+        api_client.get(
+            f"/breed/{BREED}/images/random",
+            expect_status=[200],
+            req_headers=["Accept"],
+            res_content_type="application/json",
+            res_fields={"status": str, "message": str},
+            schema=breed_random_img_schema,
+            validators=[assert_status_success],
+        )
+
+    @pytest.mark.api
+    @pytest.mark.dog_api
+    @pytest.mark.contrato
+    def test_breed_random_image_single_contract(self, api_client) -> None:
+        resp = api_client.get(
+            f"/breed/{BREED}/images/random",
+            expect_status=[200],
+            res_content_type="application/json",
+            res_fields={"status": str, "message": str},
+            schema=breed_random_img_schema,
+        )
+        body = resp.json()
+        msg = body["message"]
+        assert f"/breeds/{BREED}-" in msg or f"/breeds/{BREED}/" in msg, (
+            f"Random image breed endpoint should return image for '{BREED}'. Got: {msg!r}"
+        )
+
+    @pytest.mark.api
+    @pytest.mark.dog_api
+    @pytest.mark.funcional
+    def test_breed_random_images_three_contract(self, api_client) -> None:
+        api_client.get(
+            f"/breed/{BREED}/images/random/3",
+            expect_status=[200],
+            req_headers=["Accept"],
+            res_content_type="application/json",
+            res_fields={"status": str, "message": list},
+            schema=lambda b: breed_random_multiple_schema(b, expected_n=3),
+            validators=[assert_status_success],
+        )
+
+    @pytest.mark.api
+    @pytest.mark.dog_api
+    @pytest.mark.funcional
+    def test_breed_random_images_three_belong_to_breed(self, api_client) -> None:
+        resp = api_client.get(
+            f"/breed/{BREED}/images/random/3",
+            expect_status=[200],
+            res_content_type="application/json",
+            res_fields={"status": str, "message": list},
+        )
+        urls = resp.json()["message"]
+        assert isinstance(urls, list) and len(urls) == 3, (
+            f"Expected exactly 3 URLs. Got {len(urls)}: {urls}"
+        )
+        misplaced = [
+            u for u in urls
+            if f"/breeds/{BREED}-" not in (u or "") and f"/breeds/{BREED}/" not in (u or "")
+        ]
+        assert len(misplaced) == 0, (
+            f"{len(misplaced)} URL(s) from /breed/{BREED}/images/random/3 do NOT look like "
+            f"'{BREED}' breed images: {misplaced}"
+        )
