@@ -47,9 +47,9 @@ def browser(playwright: Playwright) -> Generator[Browser, None, None]:
 
 
 UA_FALLBACK = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "Mozilla/5.0 (X11; Linux x86_64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/126.0.0.0 Safari/537.36"
+    "Chrome/128.0.0.0 Safari/537.36"
 )
 
 
@@ -64,9 +64,15 @@ def context(browser: Browser, request: pytest.FixtureRequest) -> Generator[Brows
         locale="pt-BR",
         timezone_id="America/Sao_Paulo",
         ignore_https_errors=True,
+        color_scheme="light",
+        device_scale_factor=1,
+        is_mobile=False,
+        has_touch=False,
+        java_script_enabled=True,
         extra_http_headers={
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Ch-Ua-Platform": '"Linux"',
+            "Sec-Ch-Ua-Mobile": "?0",
         },
         permissions=["geolocation"],
         record_video_dir=os.path.join(REPORTS_DIR, "videos"),
@@ -76,8 +82,26 @@ def context(browser: Browser, request: pytest.FixtureRequest) -> Generator[Brows
     ctx.add_init_script("""
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['pt-BR','pt','en'] });
-    window.chrome = { runtime: {} };
+    Object.defineProperty(navigator, 'languages', { get: () => ['pt-BR','pt','en-US','en'] });
+    Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+    window.chrome = { runtime: {}, loadTimes: () => ({}), csi: () => ({}) };
+    if (window.screen) {
+        Object.defineProperty(window.screen, 'width', { get: () => 1920 });
+        Object.defineProperty(window.screen, 'height', { get: () => 1080 });
+        Object.defineProperty(window.screen, 'availWidth', { get: () => 1920 });
+        Object.defineProperty(window.screen, 'availHeight', { get: () => 1040 });
+        Object.defineProperty(window.screen, 'colorDepth', { get: () => 24 });
+        Object.defineProperty(window.screen, 'pixelDepth', { get: () => 24 });
+    }
+    const __origGetParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(p) {
+        if (p === 37445) return 'Intel Inc.';
+        if (p === 37446) return 'Mesa Intel(R) UHD Graphics 630 (CFL GT2)';
+        return __origGetParameter.call(this, p);
+    };
     """)
     ctx.set_default_timeout(15000)
     ctx.set_default_navigation_timeout(30000)

@@ -10,6 +10,50 @@ class BlogAgiSearchPage(BasePage):
         super().__init__(page)
         self.page = page
 
+    def _esperar_cloudflare_passar(self, timeout_ms: int = 45000) -> None:
+        import time
+        deadline = time.time() + timeout_ms / 1000.0
+        while time.time() < deadline:
+            try:
+                title = self.page.title() or ""
+                body_text = (self.page.locator("body").inner_text(timeout=800) or "")[:3000]
+            except Exception:
+                title, body_text = "", ""
+
+            cf_challenge = (
+                title.lower().startswith("checking your browser")
+                or "checking your browser" in body_text.lower()
+                or "this will only take a few seconds" in body_text.lower()
+                or "just a moment..." in body_text.lower()
+            )
+
+            wordpress_ready = self.page.evaluate("""() => {
+                const body = document.body ? document.body.innerHTML : '';
+                const has = (sel) => document.querySelector(sel) !== null;
+                return !!(
+                    has('header.site-header') || has('nav') ||
+                    has('article') || has('.post') || has('.entry-title') ||
+                    has('input[name=\\'s\\']') || has('input[type=search]') ||
+                    has('.search-toggle') || has('#search')
+                );
+            }""") if not cf_challenge else False
+
+            if (not cf_challenge) and wordpress_ready:
+                return
+
+            self.page.wait_for_timeout(500)
+
+        debug_page(self.page, "cloudflare_timeout")
+        try:
+            title = self.page.title() or ""
+            body = (self.page.locator("body").inner_text(timeout=1000) or "")[:1500]
+        except Exception:
+            title, body = "", ""
+        raise AssertionError(
+            f"Cloudflare challenge nao passou apos {timeout_ms}ms. "
+            f"Titulo: {title!r}. Body[:1500]: {body!r}"
+        )
+
     def pesquisar(self, termo: str) -> None:
         self.page.goto(
             self.URL_BLOG,
@@ -17,6 +61,7 @@ class BlogAgiSearchPage(BasePage):
             timeout=30000,
         )
         self.page.wait_for_load_state("networkidle")
+        self._esperar_cloudflare_passar(timeout_ms=45000)
         debug_page(self.page, "blog_agi_home")
 
         toggle = self.page.get_by_role(
